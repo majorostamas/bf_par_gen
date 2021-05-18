@@ -12,28 +12,9 @@ using namespace core;
 using namespace BN254;
 using namespace B256_28;
 
-csprng RNG;                // Crypto Strong RNG
+
 char masterSecretBytes[MODBYTES_B256_28];
 octet masterSecret = {0, sizeof(masterSecretBytes), masterSecretBytes};
-ECP2 pPublic;
-char IDBytesPC[100];
-octet ID_PC = {0, sizeof(IDBytesPC), IDBytesPC};
-char IDBytesESP[100];
-octet ID_ESP = {0, sizeof(IDBytesESP), IDBytesESP};
-ECP privateKeyPC;
-ECP privateKeyESP;
-
-void OCT_print(octet *w)
-{
-    int i;
-    unsigned char ch;
-    for (i = 0; i < w->len; i++)
-    {
-        ch = w->val[i];
-        printf("%02x", ch);
-    }
-    printf("\n");
-}
 
 
 /* create random secret S */
@@ -65,16 +46,16 @@ void extract(ECP *privateKey, octet *masterSecret, octet *ID) {
 }
 
 
-
 void genParameters(){
-    int i;
-    unsigned char ch;
+    csprng RNG;                // Crypto Strong RNG
+    ECP2 pPublic;
+    char buffer[1024];
     FILE *fp;
     srand (time(NULL));
     char raw[100];
     octet RAW = {0, sizeof(raw), raw};
 
-    RAW.len = 100;              // fake random seed source
+    RAW.len = 100;
     for (int i = 0; i < 100; i++){
         RAW.val[i] = rand() % 256;
     }
@@ -83,34 +64,31 @@ void genParameters(){
 
     init(&RNG, &pPublic, &masterSecret);
 
-    printf("Mastersecret: ");
-    OCT_print(&masterSecret);
+    OCT_toHex(&masterSecret, buffer);
+    printf("Mastersecret: %s\n", buffer);
     fp = fopen("parameters/masterSecret", "w");//opening file  
-    for (i = 0; i < masterSecret.len; i++)
-    {
-        ch = masterSecret.val[i];
-        fprintf(fp, "%02x", ch);
-    }
+    fprintf(fp, "%s", buffer);
     fclose(fp);//closing file
     
     char pPublicBytes[200];
     octet pPublicOctet = {0, sizeof(pPublicBytes), pPublicBytes};
     ECP2_toOctet(&pPublicOctet, &pPublic, false);
-    printf("Public parameters: ");
-    OCT_print(&pPublicOctet);
+    OCT_toHex(&pPublicOctet, buffer);
+    printf("Public parameters: %s\n", buffer);
     fp = fopen("parameters/pPublic", "w");//opening file  
-    for (i = 0; i < pPublicOctet.len; i++)
-    {
-        ch = pPublicOctet.val[i];
-        fprintf(fp, "%02x", ch);
-    }
+    fprintf(fp, "%s", buffer);
     fclose(fp);//closing file
     
 }
 
 void extractKeys(){
-    int i;
-    unsigned char ch;
+    ECP privateKeyPC;
+    ECP privateKeyESP;
+    char IDBytesPC[100];
+    octet ID_PC = {0, sizeof(IDBytesPC), IDBytesPC};
+    char IDBytesESP[100];
+    octet ID_ESP = {0, sizeof(IDBytesESP), IDBytesESP};
+    char buffer[1024];
     FILE *fp;
     OCT_jstring(&ID_PC, (char *)"pcid"); 
     extract(&privateKeyPC, &masterSecret, &ID_PC);
@@ -125,34 +103,24 @@ void extractKeys(){
     
     ECP_toOctet(&privateKeyPCOctet, &privateKeyPC, false);
     ECP_toOctet(&privateKeyESPOctet, &privateKeyESP, false);
+   
     
-    printf("PC private key: ");
-    OCT_print(&privateKeyPCOctet);
-    printf("ESP32 private key: ");
-    OCT_print(&privateKeyESPOctet);
-    
+    OCT_toHex(&privateKeyPCOctet, buffer);
+    printf("PC private key: %s\n", buffer);
     fp = fopen("parameters/privateKeyPC", "w");//opening file  
-
-    for (i = 0; i < privateKeyPCOctet.len; i++)
-    {
-        ch = privateKeyPCOctet.val[i];
-        fprintf(fp, "%02x", ch);
-    }
+    fprintf(fp, "%s", buffer);
     fclose(fp);//closing file
     
     
+    OCT_toHex(&privateKeyESPOctet, buffer);
+    printf("ESP private key: %s\n", buffer);
     fp = fopen("parameters/privateKeyESP", "w");//opening file  
-
-    for (i = 0; i < privateKeyESPOctet.len; i++)
-    {
-        ch = privateKeyESPOctet.val[i];
-        fprintf(fp, "%02x", ch);
-    }
+    fprintf(fp, "%s", buffer);
     fclose(fp);//closing file
 }
 
 
 int main(){
-  genParameters();
-  extractKeys();
+    genParameters();
+    extractKeys();
 }
