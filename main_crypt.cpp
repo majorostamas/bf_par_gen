@@ -7,30 +7,19 @@
 #include "utils.h"
 
 #include <time.h>       /* time */
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <sys/types.h>
+
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
 
 using namespace core;
 using namespace BN254;
 using namespace B256_28;
-
-char pPublicBytes[200];
-char privateKeyPCBytes[100];
-
-int ppublicsize;
-int privatekeysize;
-
-
-void OCT_print(octet *w)
-{
-    int i;
-    unsigned char ch;
-    for (i = 0; i < w->len; i++)
-    {
-        ch = w->val[i];
-        printf("%02x", ch);
-    }
-    printf("\n");
-}
-
 
 /* create random secret S */
 int BFIBE_BN254_RANDOM_GENERATE(csprng *RNG, octet* S) {
@@ -40,14 +29,6 @@ int BFIBE_BN254_RANDOM_GENERATE(csprng *RNG, octet* S) {
     BIG_toBytes(S->val, s);
     S->len = MODBYTES_B256_28;
     return 0;
-}
-
-void init(csprng *RNG, ECP2 *pPublic, octet *masterSecret) {
-    BFIBE_BN254_RANDOM_GENERATE(RNG, masterSecret);
-    ECP2_generator(pPublic);
-    BIG masterSecretAsBIG;  
-    BIG_fromBytes(masterSecretAsBIG, masterSecret->val);
-    PAIR_G2mul(pPublic, masterSecretAsBIG);
 }
 
 void encrypt(ECP2 *cipherPointU, octet *cipherV, octet *cipherW, octet *ID, octet *message, ECP2 *pPublic) {
@@ -139,57 +120,57 @@ void decrypt(ECP2 *cipherPointU, octet *cipherV, octet *cipherW, ECP *privateKey
     printf("\n");
 }
 
-void read(){
+void read(octet *pPublicOctet, octet *privateKeyOctet){
    int i;
    FILE *fp;
    int sz;
-    
+   char *buffer = NULL;
+   size_t size = 0;
+   
    //PUBLIC PARAMETERS
-   fp = fopen("parameters/pPublic", "r"); 
-   fseek(fp, 0L, SEEK_END);
-   sz = ftell(fp);
-   printf("%d\n",sz);
-   fseek(fp, 0L, SEEK_SET);
-   for(i=0; i<sz/2; i++){
-        unsigned int val;
-        fscanf(fp, "%02x", &val);
-        pPublicBytes[i]=val;
-   }
+   fp = fopen("parameters/pPublic", "r");
+   fseek(fp, 0, SEEK_END); /* Go to end of file */
+   size = ftell(fp);
+   rewind(fp);
+   buffer = (char*)malloc((size + 1) * sizeof(*buffer)); /* size + 1 byte for the \0 */
+   fread(buffer, size, 1, fp); /* Read 1 chunk of size bytes from fp into buffer */
+   buffer[size] = '\0';
+   OCT_fromHex(pPublicOctet, buffer);
    fclose(fp);
-   ppublicsize = sz/2;
-   
-   
+   free(buffer);
+
    
    //PRIVATE KEY
    fp = fopen("parameters/privateKeyPC", "r"); 
-   fseek(fp, 0L, SEEK_END);
-   sz = ftell(fp);
-   printf("%d\n",sz);
-   fseek(fp, 0L, SEEK_SET);
-   for(i=0; i<sz/2; i++){
-        unsigned int val;
-        fscanf(fp, "%02x", &val);
-        privateKeyPCBytes[i]=val;
-   }
+   fseek(fp, 0, SEEK_END); /* Go to end of file */
+   size = ftell(fp);
+   rewind(fp);
+   buffer = (char*)malloc((size + 1) * sizeof(*buffer)); /* size + 1 byte for the \0 */
+   fread(buffer, size, 1, fp); /* Read 1 chunk of size bytes from fp into buffer */
+   buffer[size] = '\0';
+   OCT_fromHex(privateKeyOctet, buffer);
    fclose(fp);
-   privatekeysize = sz/2;
+   free(buffer);
 }  
 
 int main(){
-    //Read public parameters and PC private key from file
-    read();
+    char pPublicBytes[200];
+    char privateKeyPCBytes[100];
+    char buffer[1024];
     
-    octet pPublicOctet = {ppublicsize, sizeof(pPublicBytes), pPublicBytes};
-    printf("Public parameters: ");
-    OCT_print(&pPublicOctet);
+    octet pPublicOctet = {0, sizeof(pPublicBytes), pPublicBytes};
+    octet privateKeyPCOctet = {0, sizeof(privateKeyPCBytes), privateKeyPCBytes}; 
+
+    //Read public parameters and PC private key from file
+    read(&pPublicOctet, &privateKeyPCOctet);
+    OCT_toHex(&pPublicOctet, buffer);
+    printf("Public parameters: %s\n", buffer);
+    OCT_toHex(&privateKeyPCOctet, buffer);
+    printf("PC private key: %s\n", buffer);
     
     ECP2 pPublic;
     ECP2_fromOctet(&pPublic, &pPublicOctet);
-    
-    octet privateKeyPCOctet = {privatekeysize, sizeof(privateKeyPCBytes), privateKeyPCBytes};
-    printf("PC private key: ");
-    OCT_print(&privateKeyPCOctet);
-    
+        
     ECP privateKeyPC;
     ECP_fromOctet(&privateKeyPC, &privateKeyPCOctet);
     
@@ -212,4 +193,58 @@ int main(){
 
     encrypt(&cipherPointU, &cipherV, &cipherW, &ID, &message, &pPublic);
     decrypt(&cipherPointU, &cipherV, &cipherW, &privateKeyPC);
+    
+    char cipherVhex[2*HASH_TYPE_BN254];
+    char cipherWhex[200];
+    OCT_toHex(&cipherV, cipherVhex);
+    OCT_toHex(&cipherW, cipherWhex);
+    char cipherPointUOctetBytes[500];
+    octet cipherPointUOctet = {0, sizeof(cipherPointUOctetBytes), cipherPointUOctetBytes};
+    ECP2_toOctet(&cipherPointUOctet, &cipherPointU,false);
+    char cipherPointUhex[1000];
+    OCT_toHex(&cipherPointUOctet, cipherPointUhex);
+    
+    printf("CipherV: %s\n", cipherVhex);
+    printf("CipherW: %s\n", cipherWhex);
+    printf("cipherPointU: %s\n", cipherPointUhex);
+    
+    printf("Socket start\n");
+    int sockfd;
+    
+    struct sockaddr_in     servaddr;
+  
+    // Creating socket file descriptor
+    if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) {
+        perror("socket creation failed");
+        exit(EXIT_FAILURE);
+    }
+  
+    memset(&servaddr, 0, sizeof(servaddr));
+      
+    // Filling server information
+    servaddr.sin_family = AF_INET;
+    servaddr.sin_port = htons(1234);
+    servaddr.sin_addr.s_addr = inet_addr("192.168.1.175");
+      
+    unsigned int n, len;
+    
+    // connect to server
+    if(connect(sockfd, (struct sockaddr *)&servaddr, sizeof(servaddr)) < 0)
+    {
+        printf("\n Error : Connect Failed \n");
+        exit(0);
+    }
+    
+    //Send cipherV, cipherW and cipherPointU
+    sendto(sockfd, cipherVhex, strlen(cipherVhex), 0, (const struct sockaddr *) &servaddr, sizeof(servaddr));
+    sendto(sockfd, cipherWhex, strlen(cipherWhex), 0, (const struct sockaddr *) &servaddr, sizeof(servaddr));
+    sendto(sockfd, cipherPointUhex, strlen(cipherPointUhex), 0, (const struct sockaddr *) &servaddr, sizeof(servaddr));
+    printf("cipherV, cipherW and  cipherPointU sent.\n");
+          
+    n = recvfrom(sockfd, (char *)buffer, 1024, MSG_WAITALL, (struct sockaddr *) &servaddr, &len);
+    buffer[n] = '\0';
+    printf("Received message: %s\n", buffer);
+    //decrypt(privateKey);
+        
+    close(sockfd);
 }
