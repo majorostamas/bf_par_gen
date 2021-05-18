@@ -12,6 +12,7 @@ using namespace core;
 using namespace BN254;
 using namespace B256_28;
 
+#define RAWLEN 100
 
 char masterSecretBytes[MODBYTES_B256_28];
 octet masterSecret = {0, sizeof(masterSecretBytes), masterSecretBytes};
@@ -52,11 +53,11 @@ void genParameters(){
     char buffer[1024];
     FILE *fp;
     srand (time(NULL));
-    char raw[100];
+    char raw[RAWLEN];
     octet RAW = {0, sizeof(raw), raw};
 
-    RAW.len = 100;
-    for (int i = 0; i < 100; i++){
+    RAW.len = RAWLEN;
+    for (int i = 0; i < RAWLEN; i++){
         RAW.val[i] = rand() % 256;
     }
 
