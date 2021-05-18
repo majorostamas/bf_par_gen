@@ -37,7 +37,7 @@ void hashToPoint(ECP *result, octet *DST, octet *ID) {
     char fd[256];
     BIG w;
     FP u;
-    
+
     hashToRange(w, DST, ID);
 
     FP_nres(&u,w);
@@ -59,7 +59,7 @@ void hashBytes(octet *result, const int b, octet *p) {
   char hBytes[HASH_TYPE_BN254];
   octet h = {0, sizeof(hBytes), hBytes};
   for (int i = 0; i < HASH_TYPE_BN254; i++) {
-    hBytes[i] = 0;
+    h.val[i] = 0;
   }
 
   // Let \f$l = \mathrm{Ceiling}(\frac{b}{\mathrm{hashlen}}).
@@ -80,14 +80,14 @@ void hashBytes(octet *result, const int b, octet *p) {
     // \f$(2 \cdot \mathrm{hashlen})\f$-octet concatenation of \f$h_i\f$ and
     // \f$k\f$.
     for (int j = 0; j < HASH_TYPE_BN254; j++) {
-      concatBytes[j] = hBytes[j];
+      concat.val[j] = h.val[j];
     }
     for (int j = 0; j < HASH_TYPE_BN254; j++) {
-      concatBytes[HASH_TYPE_BN254 + j] = kBytes[j];
+      concat.val[HASH_TYPE_BN254 + j] = k.val[j];
     }
+    concat.len = 2 * HASH_TYPE_BN254;
 
     SPhash(MC_SHA2, HASH_TYPE_BN254, &resultPart, &concat);
-
 
     // Let \f$r = \mathrm{LeftmostOctets}(b, r_1 || ... || r_l)\f$, i.e.,
     // \f$r\f$ is formed as the concatenation of the \f$r_i\f$, truncated to the

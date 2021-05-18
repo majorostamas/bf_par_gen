@@ -67,6 +67,7 @@ void encrypt(ECP2 *cipherPointU, octet *cipherV, octet *cipherW, octet *ID, octe
     for (int i = 0; i < HASH_TYPE_BN254; i++) {
         concat.val[HASH_TYPE_BN254 + i] = t.val[i];
     }
+    concat.len = 2 * HASH_TYPE_BN254;
 
     BIG l;
     hashToRange(l, &DST, &concat);
