@@ -17,6 +17,8 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 
+#define RAWLEN 100
+
 using namespace core;
 using namespace BN254;
 using namespace B256_28;
@@ -33,11 +35,11 @@ int BFIBE_BN254_RANDOM_GENERATE(csprng *RNG, octet* S) {
 
 void encrypt(ECP2 *cipherPointU, octet *cipherV, octet *cipherW, octet *ID, octet *message, ECP2 *pPublic) {
     srand (time(NULL));
-    char raw[100];
+    char raw[RAWLEN];
     octet RAW = {0, sizeof(raw), raw};
 
-    RAW.len = 100;
-    for (int i = 0; i < 100; i++){
+    RAW.len = RAWLEN;
+    for (int i = 0; i < RAWLEN; i++){
         RAW.val[i] = rand() % 256;
     }
 
@@ -236,9 +238,14 @@ int main(){
     }
     
     //Send cipherV, cipherW and cipherPointU
-    sendto(sockfd, cipherVhex, strlen(cipherVhex), 0, (const struct sockaddr *) &servaddr, sizeof(servaddr));
-    sendto(sockfd, cipherWhex, strlen(cipherWhex), 0, (const struct sockaddr *) &servaddr, sizeof(servaddr));
-    sendto(sockfd, cipherPointUhex, strlen(cipherPointUhex), 0, (const struct sockaddr *) &servaddr, sizeof(servaddr));
+    buffer[0] = '\0';
+    strcat(buffer, cipherVhex);
+    strcat(buffer, "_");
+    strcat(buffer, cipherWhex);
+    strcat(buffer, "_");
+    strcat(buffer, cipherPointUhex);
+    printf("%s\n",buffer);
+    sendto(sockfd, buffer, strlen(buffer), 0, (const struct sockaddr *) &servaddr, sizeof(servaddr));
     printf("cipherV, cipherW and  cipherPointU sent.\n");
           
     n = recvfrom(sockfd, (char *)buffer, 1024, MSG_WAITALL, (struct sockaddr *) &servaddr, &len);
