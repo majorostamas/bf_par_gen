@@ -71,6 +71,7 @@ void encrypt(ECP2 *cipherPointU, octet *cipherV, octet *cipherW, octet *ID, octe
     }
     concat.len = 2 * HASH_TYPE_BN254;
 
+
     BIG l;
     hashToRange(l, &DST, &concat);
 
@@ -123,6 +124,46 @@ void decrypt(ECP2 *cipherPointU, octet *cipherV, octet *cipherW, ECP *privateKey
     printf("\n");
 }
 
+void parseMessage(char* data, int length, octet *cipherV, octet *cipherW, octet *cipherPointUOctet, ECP2* cipherPointU, ECP* privateKeyPC){
+   int delimiter_positions[2];
+   char buffer[800];
+   int delimiter = 0;
+    for (int i=0;i<length;i++){
+      if (*(data+i) == '_' && delimiter <3){
+        delimiter_positions[delimiter]=i;
+        delimiter++;
+      }
+    }
+    for (int i=0;i<delimiter_positions[0];i++){
+      buffer[i]= *(data+i);
+    }
+    buffer[delimiter_positions[0]] = '\0';
+    //Serial.printf("\ncipherV: %s\n",buffer);
+    OCT_fromHex(cipherV, buffer);
+    int j=0;
+    for (int i=delimiter_positions[0]+1;i<delimiter_positions[1];i++){
+      buffer[j]= *(data+i);
+      j++;
+    }
+    buffer[j]='\0';
+    //Serial.printf("cipherW: %s\n",buffer);
+    OCT_fromHex(cipherW, buffer);
+    j=0;
+    for (int i=delimiter_positions[1]+1;i<length;i++){
+      buffer[j]= *(data+i);
+      j++;
+    }
+    buffer[j]='\0';
+    //Serial.printf("cipherPointUhex: %s\n",buffer);
+    OCT_fromHex(cipherPointUOctet, buffer);
+
+    
+    printf("Received decrypted message: ");
+    
+    ECP2_fromOctet(cipherPointU, cipherPointUOctet);
+    decrypt(cipherPointU, cipherV, cipherW, privateKeyPC); //decrypt the received message    
+}
+
 void read(octet *pPublicOctet, octet *privateKeyOctet){
    int i;
    FILE *fp;
@@ -156,7 +197,11 @@ void read(octet *pPublicOctet, octet *privateKeyOctet){
    free(buffer);
 }  
 
-int main(){
+int main(int argc, char *argv[]){
+    if (argc<4){
+        printf("Required arguments: IP PORT MESSAGE");
+        exit(1);
+    }
     char pPublicBytes[200];
     char privateKeyPCBytes[100];
     char buffer[1024];
@@ -167,9 +212,9 @@ int main(){
     //Read public parameters and PC private key from file
     read(&pPublicOctet, &privateKeyPCOctet);
     OCT_toHex(&pPublicOctet, buffer);
-    printf("Public parameters: %s\n", buffer);
+    //printf("Public parameters: %s\n", buffer);
     OCT_toHex(&privateKeyPCOctet, buffer);
-    printf("PC private key: %s\n", buffer);
+    //printf("PC private key: %s\n", buffer);
     
     ECP2 pPublic;
     ECP2_fromOctet(&pPublic, &pPublicOctet);
@@ -191,11 +236,11 @@ int main(){
     char IDBytes[100];
     octet ID = {0, sizeof(IDBytes), IDBytes};
 
-    OCT_jstring(&ID, (char *)"pcid");
-    OCT_jstring(&message, (char *)"Testmessage");
+    OCT_jstring(&ID, (char *)"espid");
+    OCT_jstring(&message, argv[3]);
 
     encrypt(&cipherPointU, &cipherV, &cipherW, &ID, &message, &pPublic);
-    decrypt(&cipherPointU, &cipherV, &cipherW, &privateKeyPC);
+    //decrypt(&cipherPointU, &cipherV, &cipherW, &privateKeyPC);
     
     char cipherVhex[2*HASH_TYPE_BN254];
     char cipherWhex[200];
@@ -207,11 +252,11 @@ int main(){
     char cipherPointUhex[1000];
     OCT_toHex(&cipherPointUOctet, cipherPointUhex);
     
-    printf("CipherV: %s\n", cipherVhex);
-    printf("CipherW: %s\n", cipherWhex);
-    printf("cipherPointU: %s\n", cipherPointUhex);
+    //printf("CipherV: %s\n", cipherVhex);
+    //printf("CipherW: %s\n", cipherWhex);
+    //printf("cipherPointU: %s\n", cipherPointUhex);
     
-    printf("Socket start\n");
+    //printf("Socket start\n");
     int sockfd;
     
     struct sockaddr_in     servaddr;
@@ -226,8 +271,8 @@ int main(){
       
     // Filling server information
     servaddr.sin_family = AF_INET;
-    servaddr.sin_port = htons(1234);
-    servaddr.sin_addr.s_addr = inet_addr("192.168.1.175");
+    servaddr.sin_port = htons(atoi(argv[2]));
+    servaddr.sin_addr.s_addr = inet_addr(argv[1]);
       
     unsigned int n, len;
     
@@ -245,14 +290,14 @@ int main(){
     strcat(buffer, cipherWhex);
     strcat(buffer, "_");
     strcat(buffer, cipherPointUhex);
-    printf("%s\n",buffer);
+    //printf("%s\n",buffer);
     sendto(sockfd, buffer, strlen(buffer), 0, (const struct sockaddr *) &servaddr, sizeof(servaddr));
-    printf("cipherV, cipherW and  cipherPointU sent.\n");
+    printf("Encrypted message sent.\n");
           
     n = recvfrom(sockfd, (char *)buffer, 1024, MSG_WAITALL, (struct sockaddr *) &servaddr, &len);
     buffer[n] = '\0';
-    printf("Received message: %s\n", buffer);
-    //decrypt(privateKey);
+    //printf("Received message: %s\n", buffer);
+    parseMessage(buffer,n, &cipherV, &cipherW, &cipherPointUOctet, &cipherPointU, &privateKeyPC);
         
     close(sockfd);
 }
